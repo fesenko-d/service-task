@@ -1,0 +1,4 @@
+*.pem
+*.json
+*.pub
+*.DS_Store
