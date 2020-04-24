@@ -31,7 +31,6 @@ frontend http_front
 
 backend http_back
    mode http
-   balance roundrobin
    option forwardfor
    server wp_server_1 $WP_IP:80 check
 
@@ -44,7 +43,6 @@ frontend https_front
 
 backend https_back
    mode tcp
-   balance roundrobin
    option ssl-hello-chk
    server wp_server_1 $WP_IP:443 check">/etc/haproxy/haproxy.cfg
 service haproxy restart

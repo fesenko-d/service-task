@@ -40,27 +40,21 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ~/wordpress-compose/
 echo \
 'ssl_certificate /etc/nginx/ssl/nginx.crt;
 ssl_certificate_key /etc/nginx/ssl/nginx.key;
-
 server {
     listen 80;
     server_name sevice-task-9000;
     return 301 https://$host$request_uri;
 }
-
 server {
     listen 443 ssl;
     server_name sevice-task-9000;
-
     root /var/www/html;
     index index.php;
-
     access_log /var/log/nginx/service-task-9000-access.log;
     error_log /var/log/nginx/service-task-9000-error.log;
-
     location / {
         try_files $uri $uri/ /index.php?$args;
     }
-
     location ~ \.php$ {
         try_files $uri =404;
         fastcgi_split_path_info ^(.+\.php)(/.+)$;
