@@ -2,3 +2,4 @@
 *.json
 *.pub
 *.DS_Store
+*.sw*

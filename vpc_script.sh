@@ -253,7 +253,7 @@ DataBaseInstanceID=$(aws ec2 run-instances \
     --subnet-id $DataBase_SubnetId \
     --key-name $KeyName\
     --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=DataBase_Instance}]' \
-    --query 'Reservations[].Instances[].InstanceId' \
+    --query 'Instances[].InstanceId' \
     --output text)
 DataBaseInstancePrivateIP=$(aws ec2 describe-instances --instance-id $DataBaseInstanceID --query 'Reservations[].Instances[].PrivateIpAddress' --output text)
 
@@ -354,21 +354,79 @@ aws ec2 create-tags \
     --tags Key=Name,Value=RDP_to_FrontVPC_VpnConnection
 
 echo Stopping instances to modifay their attributes
+while [true]
+do
+  echo checking instances
+  NATSTATE = $(aws ec2 describe-instances --instance-id $NAT_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
+  WPSATE = $(aws ec2 describe-instances --instance-id $WordPressInstanceId --query 'Reservations[].Instances[].State.Code' --output text)
+  DBSTATE = $(aws ec2 describe-instances --instance-id $DataBaseInstanceID --query 'Reservations[].Instances[].State.Code' --output text)
+  RDPSTATE = $(aws ec2 describe-instances --instance-id $RDS_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
+  if [$NATSTATE -eq 16 && $WPSATE -eq 16 && $DBSTATE -eq 16 && $RDPSTATE -eq 16]
+  then
+    echo success
+    break
+  fi
+done
 aws ec2 stop-instances --instance-ids "$NAT_InstanceId" "$WordPressInstanceId" "$DataBaseInstanceID" "$RDS_InstanceId" >/dev/null
 
 echo Adding startup scripts
-sed "s/.*WP_IP=.*/WP_IP=$WordPressInstancePrivateIP/" NAT_UserData.sh|base64>NAT_UserData_base64.sh
-aws ec2 modify-instance-attribute --instance-id $NAT_InstanceId --attribute userData --value file://NAT_UserData_base64.sh
-rm -f NAT_UserData_base64.sh
-sed "s/.*DB_IP=.*/DB_IP=$DataBaseInstancePrivateIP/" WP_Userdata_U.sh|base64 > WP_Userdata_U_base64.sh
-aws ec2 modify-instance-attribute --instance-id $WordPressInstanceId --attribute userData --value file://WP_Userdata_U_base64.sh
-rm -f WP_Userdata_U_base64.sh
-sed "s/.*WP_IP=.*/WP_IP=$WordPressInstancePrivateIP/" DB_UserData.sh|base64 > DB_UserData_base64.sh
-aws ec2 modify-instance-attribute --instance-id $DataBaseInstanceID --attribute userData --value file://DB_UserData_base64.sh
-rm -f DB_UserData_base64.sh
+while [true]
+do
+  echo checking instances
+  NATSTATE = $(aws ec2 describe-instances --instance-id $NAT_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
+  WPSATE = $(aws ec2 describe-instances --instance-id $WordPressInstanceId --query 'Reservations[].Instances[].State.Code' --output text)
+  DBSTATE = $(aws ec2 describe-instances --instance-id $DataBaseInstanceID --query 'Reservations[].Instances[].State.Code' --output text)
+  RDPSTATE = $(aws ec2 describe-instances --instance-id $RDS_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
+  if [$NATSTATE -eq 80 && $WPSATE -eq 80 && $DBSTATE -eq 80 && $RDPSTATE -eq 80]
+  then
+    echo success
+    break
+  fi
+done
+
+if [-f cloud_init.txt]
+then
+  if [-f NAT_UserData.sh]
+  then
+    sed '/DATA/ {
+    r NAT_UserData.sh
+    d
+    }' cloud_init.txt|sed "s/.*WP_IP=.*/WP_IP=$WordPressInstancePrivateIP/"|base64>tmp.txt
+    aws ec2 modify-instance-attribute --instance-id $NAT_InstanceId --attribute userData --value file://tmp.txt
+  else
+    echo NAT_UserData.sh not found
+  fi
+
+  if [-f WP_Userdata_U.sh]
+  then
+    sed '/DATA/ {
+    r WP_Userdata_U.sh
+    d
+    }' cloud_init.txt|sed "s/.*DB_IP=.*/DB_IP=$DataBaseInstancePrivateIP/"|base64>tmp.txt
+    aws ec2 modify-instance-attribute --instance-id $WordPressInstanceId --attribute userData --value file://tmp.txt
+  else
+    echo WP_Userdata_U.sh not found
+  fi
+
+  if [-f NAT_UserData.sh]
+  then
+    sed '/DATA/ {
+    r DB_UserData.sh
+    d
+    }' cloud_init.txt|sed "s/.*WP_IP=.*/WP_IP=$WordPressInstancePrivateIP/"|base64>tmp.txt
+    aws ec2 modify-instance-attribute --instance-id $DataBaseInstanceID --attribute userData --value file://tmp.txt
+  else
+    echo NAT_UserData.sh not found
+  fi
+
+else
+  echo cloud_init.txt not found
+fi
+rm -f tmp.txt
 
 echo Starting instances
-aws ec2 start-instances --instance-ids "$NAT_InstanceId" "$WordPressInstanceId" "$DataBaseInstanceID" >/dev/null
+aws ec2 start-instances --instance-ids "$NAT_InstanceId" "$WordPressInstanceId" "$DataBaseInstanceID" "$RDS_InstanceId" >/dev/null
+
 
 
 echo "to enable ssh agent while connecting to NAT Instanse use next commands:
