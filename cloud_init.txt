@@ -9,7 +9,7 @@ Content-Disposition: attachment; filename="cloud-config.txt"
 
 #cloud-config
 cloud_final_modules:
-- [scripts-per-once]
+- [scripts-user, once]
 
 --//
 Content-Type: text/x-shellscript; charset="us-ascii"

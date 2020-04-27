@@ -354,14 +354,14 @@ aws ec2 create-tags \
     --tags Key=Name,Value=RDP_to_FrontVPC_VpnConnection
 
 echo Stopping instances to modifay their attributes
-while [true]
+while :
 do
   echo checking instances
-  NATSTATE = $(aws ec2 describe-instances --instance-id $NAT_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
-  WPSATE = $(aws ec2 describe-instances --instance-id $WordPressInstanceId --query 'Reservations[].Instances[].State.Code' --output text)
-  DBSTATE = $(aws ec2 describe-instances --instance-id $DataBaseInstanceID --query 'Reservations[].Instances[].State.Code' --output text)
-  RDPSTATE = $(aws ec2 describe-instances --instance-id $RDS_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
-  if [$NATSTATE -eq 16 && $WPSATE -eq 16 && $DBSTATE -eq 16 && $RDPSTATE -eq 16]
+  NATStateCode=$(aws ec2 describe-instances --instance-id $NAT_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
+  WPStateCode=$(aws ec2 describe-instances --instance-id $WordPressInstanceId --query 'Reservations[].Instances[].State.Code' --output text)
+  DBStateCode=$(aws ec2 describe-instances --instance-id $DataBaseInstanceID --query 'Reservations[].Instances[].State.Code' --output text)
+  RStateCode=$(aws ec2 describe-instances --instance-id $RDS_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
+  if [[ $NATStateCode -eq 16 && $WPStateCode -eq 16 && $DBStateCode -eq 16 && $RStateCode -eq 16 ]]
   then
     echo success
     break
@@ -370,23 +370,23 @@ done
 aws ec2 stop-instances --instance-ids "$NAT_InstanceId" "$WordPressInstanceId" "$DataBaseInstanceID" "$RDS_InstanceId" >/dev/null
 
 echo Adding startup scripts
-while [true]
+while :
 do
   echo checking instances
-  NATSTATE = $(aws ec2 describe-instances --instance-id $NAT_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
-  WPSATE = $(aws ec2 describe-instances --instance-id $WordPressInstanceId --query 'Reservations[].Instances[].State.Code' --output text)
-  DBSTATE = $(aws ec2 describe-instances --instance-id $DataBaseInstanceID --query 'Reservations[].Instances[].State.Code' --output text)
-  RDPSTATE = $(aws ec2 describe-instances --instance-id $RDS_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
-  if [$NATSTATE -eq 80 && $WPSATE -eq 80 && $DBSTATE -eq 80 && $RDPSTATE -eq 80]
+  NATStateCode=$(aws ec2 describe-instances --instance-id $NAT_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
+  WPStateCode=$(aws ec2 describe-instances --instance-id $WordPressInstanceId --query 'Reservations[].Instances[].State.Code' --output text)
+  DBStateCode=$(aws ec2 describe-instances --instance-id $DataBaseInstanceID --query 'Reservations[].Instances[].State.Code' --output text)
+  RStateCode=$(aws ec2 describe-instances --instance-id $RDS_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
+  if [[ $NATStateCode -eq 80 && $WPStateCode -eq 80 && $DBStateCode -eq 80 && $RStateCode -eq 80 ]]
   then
     echo success
     break
   fi
 done
 
-if [-f cloud_init.txt]
+if [ -f cloud_init.txt ]
 then
-  if [-f NAT_UserData.sh]
+  if [ -f NAT_UserData.sh ]
   then
     sed '/DATA/ {
     r NAT_UserData.sh
@@ -397,7 +397,7 @@ then
     echo NAT_UserData.sh not found
   fi
 
-  if [-f WP_Userdata_U.sh]
+  if [ -f WP_Userdata_U.sh ]
   then
     sed '/DATA/ {
     r WP_Userdata_U.sh
@@ -408,7 +408,7 @@ then
     echo WP_Userdata_U.sh not found
   fi
 
-  if [-f NAT_UserData.sh]
+  if [ -f NAT_UserData.sh ]
   then
     sed '/DATA/ {
     r DB_UserData.sh
