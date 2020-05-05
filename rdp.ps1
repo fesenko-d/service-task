@@ -1,16 +1,12 @@
 
 Install-WindowsFeature -Name "AD-Domain-Services" -IncludeAllSubFeature
 Install-WindowsFeature -Name "RSAT-AD-Tools" -IncludeAllSubFeature
-Install-WindowsFeature -Name "RDS-Connection-Broker"
-Install-WindowsFeature -Name "RDS-Gateway"
-Install-WindowsFeature -Name "RDS-Licensing"
-Install-WindowsFeature -Name "RDS-RD-Server"
-Install-WindowsFeature -Name "RDS-Web-Access"
-restart-computer
 
 #
-# Windows PowerShell script for AD DS Deployment
+# AD DS Deployment
 #
+
+$Secure_String = ConvertTo-SecureString "ns_g1l0h" -AsPlainText -Force
 
 Import-Module ADDSDeployment
 Install-ADDSForest `
@@ -24,8 +20,24 @@ Install-ADDSForest `
 -LogPath "C:\Windows\NTDS" `
 -NoRebootOnCompletion:$false `
 -SysvolPath "C:\Windows\SYSVOL" `
+-SafeModeAdministratorPassword $Secure_String `
 -Force:$true
 
 
-[string]$host="$env:computername.rds-9000.com"
-New-RDSessionDeployment -ConnectionBroker $host -SessionHost $host -WebAccessServer $host
+#
+# RDS Deployment
+#
+
+Install-WindowsFeature -Name "RDS-Connection-Broker"
+Install-WindowsFeature -Name "RDS-Gateway"
+Install-WindowsFeature -Name "RDS-Licensing"
+Install-WindowsFeature -Name "RDS-RD-Server"
+Install-WindowsFeature -Name "RDS-Web-Access"
+restart-computer
+
+[string]$serverName="$env:computername.rds-9000.com"
+
+New-RDSessionDeployment -ConnectionBroker $serverName -SessionHost $serverName -WebAccessServer $serverName
+Add-RDServer -Server $serverName -Role RDS-LICENSING -ConnectionBroker $serverName
+Add-RDServer -Server $serverName -Role RDS-LICENSING -ConnectionBroker $serverName -GatewayExternalFqdn $serverName
+restart-computer
