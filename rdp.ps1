@@ -89,3 +89,5 @@ New-RDSessionCollection -CollectionName Desktop `
                         -CollectionDescription "Desktop Publication" `
                         -SessionHost $serverName `
                         -ConnectionBroker $serverName
+
+new-rdremoteapp -Alias Remote Desktop Connection -DisplayName "Remote Desktop Connection" -FilePath "C:\Windows\system32\mstsc.exe" -ShowInWebAccess 1 -collectionname Desktop -connectionbrocker $serverName
