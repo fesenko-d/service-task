@@ -49,8 +49,8 @@ New-RDSessionDeployment -ConnectionBroker $serverName -SessionHost $serverName -
 Install-WindowsFeature -Name "RDS-Licensing"
 Add-RDServer -Server $serverName -Role RDS-LICENSING -ConnectionBroker $serverName
 
-Install-WindowsFeature -Name "RDS-Gateway"
-Add-RDServer -Server $serverName -Role RDS-LICENSING -ConnectionBroker $serverName -GatewayExternalFqdn $DNSName
+#Install-WindowsFeature -Name "RDS-Gateway"
+#Add-RDServer -Server $serverName -Role RDS-LICENSING -ConnectionBroker $serverName -GatewayExternalFqdn $DNSName
 
 
 # Creating self-signed certificate
@@ -59,11 +59,11 @@ new-selfsignedcertificate -certstorelocation cert:\localmachine\my -dnsname $DNS
 
 # Certificate configuration
 
-Set-RDCertificate -Role RDGateway `
-                  -ImportPath C:\rds-local.pfx `
-                  -Password $Secure_String `
-                  -ConnectionBroker $serverName `
-                  -Force
+#Set-RDCertificate -Role RDGateway `
+#                  -ImportPath C:\rds-local.pfx `
+#                  -Password $Secure_String `
+#                  -ConnectionBroker $serverName `
+#                  -Force
 
 Set-RDCertificate -Role RDWebAccess `
                   -ImportPath C:\rds-local.pfx `
@@ -90,4 +90,6 @@ New-RDSessionCollection -CollectionName Desktop `
                         -SessionHost $serverName `
                         -ConnectionBroker $serverName
 
-new-rdremoteapp -Alias Remote Desktop Connection -DisplayName "Remote Desktop Connection" -FilePath "C:\Windows\system32\mstsc.exe" -ShowInWebAccess 1 -collectionname Desktop -connectionbrocker $serverName
+# Adding remote application
+
+new-rdremoteapp -Alias "Remote Desktop Connection" -DisplayName "Remote Desktop Connection" -FilePath "C:\Windows\system32\mstsc.exe" -ShowInWebAccess 1 -collectionname Desktop
