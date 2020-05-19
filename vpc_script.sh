@@ -299,15 +299,29 @@ aws ec2 create-tags \
 echo Adding Remote Desktop Service Security Group Inbound Rules
 aws ec2 authorize-security-group-ingress \
     --group-id $RDS_SecurityGroupID \
-    --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges='[{CidrIp=0.0.0.0/0,Description="SSH Access"}]'
+    --ip-permissions IpProtocol=icmp,FromPort=all,ToPort=all,IpRanges='[{CidrIp=0.0.0.0/0,Description="ICMP Access"}]'
+
 aws ec2 authorize-security-group-ingress \
     --group-id $RDS_SecurityGroupID \
     --ip-permissions IpProtocol=tcp,FromPort=3389,ToPort=3389,IpRanges='[{CidrIp=0.0.0.0/0,Description="RDP Access"}]'
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $RDS_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=80,ToPort=80,IpRanges='[{CidrIp=0.0.0.0/0,Description="HTTP Access"}]'
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $RDS_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges='[{CidrIp=0.0.0.0/0,Description="HTTPS Access"}]'
 
 echo Adding Remote Desktop Service Security Group Outbound Rules
 aws ec2 authorize-security-group-egress \
     --group-id $RDS_SecurityGroupID \
     --ip-permissions IpProtocol=tcp,FromPort=80,ToPort=80,IpRanges='[{CidrIp=0.0.0.0/0,Description="HTTP outbound"}]'
+
+aws ec2 authorize-security-group-egress \
+    --group-id $RDS_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges='[{CidrIp=0.0.0.0/0,Description="HTTPS outbound"}]'
+
 
 echo Creating Remote Desktop Service Farm Instance
 RDS_InstanceId=$(aws ec2 run-instances \
