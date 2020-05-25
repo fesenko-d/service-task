@@ -5,8 +5,8 @@
 # configured IAM jenkins user/role
 
 #AWS jenkins user credentials
-aws_access_key_id=""
-aws_secret_access_key=""
+aws_access_key_id=DATA
+aws_secret_access_key=DATA
 
 #Adding jenkins repository
 wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io.key | apt-key add -

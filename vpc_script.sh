@@ -2,13 +2,13 @@
 #Creating unique key for passwordless authentification
 
 #creating unique keyname adding current date
-KeyName="MyKeyPair$(date "+%Y-%m-%d(%H:%M:%S)")"
+KeyName="serviceTaskKeyPair"
+bucketName="servicetask-9000"
 #Creating a key pair and piping private key directly into a file
 aws ec2 create-key-pair --key-name $KeyName --query 'KeyMaterial' --output text > $KeyName.pem
-#seting the permissions of private key file so that only we can read it
-chmod 400 $KeyName.pem
-#Adding private key to the authentication agent
-ssh-add -K $KeyName.pem
+#storing key in S3
+aws s3 cp $KeyName.pem s3://$bucketName/${KeyName}.pem --region $region
+
 
 echo Creating VPC
 FrontVPC_ID=$(aws ec2 create-vpc --cidr 10.11.12.0/24 --query 'Vpc.VpcId' --output text)

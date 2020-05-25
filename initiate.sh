@@ -1,4 +1,6 @@
 #!/bin/bash
+#prerequirements :
+# installed jq utility for work with json
 #Creating unique key for passwordless authentification
 
 #variables
@@ -85,13 +87,17 @@ aws iam attach-user-policy --user-name jenkins --policy-arn arn:aws:iam::aws:pol
 # attaching policy that allows full access to S3 services
 aws iam attach-user-policy --user-name jenkins --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess
 
-JenkinsUserKey=$(aws iam create-access-key --user-name jenkins --output text)
-keyID=$(echo $JenkinsUserKey | awk '{print $2}')
-secrKey=$(echo $JenkinsUserKey | awk '{print $4}')
+JenkinsUserKey=$(aws iam create-access-key --user-name jenkins --output json)
+keyID="aws_access_key_id=$(echo $JenkinsUserKey | jq -c '.[].AccessKeyId')"
+secrKey="aws_secret_access_key=$(echo $JenkinsUserKey | jq -c '.[].SecretAccessKey')"
 
-#sed "s/.*aws_access_key_id=.*/aws_access_key_id=$keyID/" jenkins_userdata.sh|sed "s/.*aws_secret_access_key=.*/aws_secret_access_key=$secrKey/">tmp.txt
-awk -v var=$keyID '{gsub("aws_access_key_id=", "aws_access_key_id=$var", $0); print > tmp.txt}' jenkins_userdata.sh
-awk -v var=$secrKey '{gsub("aws_secret_access_key=", "aws_secret_access_key=$var", $0); print > tmp.txt}' jenkins_userdata.sh
+function Lambda_Substitution() {
+    subs_find=$1
+    subs_replace=$2
+    awk -v subs_find=$subs_find -v subs_replace=$subs_replace '{gsub(subs_find, subs_replace, $0)}1'
+}
+
+cat jenkins_userdata.sh|Lambda_Substitution "aws_access_key_id=DATA" $keyID|Lambda_Substitution "aws_secret_access_key=DATA" $secrKey > temp.txt
 
 JenkinsInstanceID=$(aws ec2 run-instances \
     --count 1 \
