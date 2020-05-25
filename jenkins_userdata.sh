@@ -31,6 +31,6 @@ su - jenkins -c "mkdir /var/lib/jenkins/.aws"
 su - jenkins -c "echo '[default]
 region = us-east-2
 output = json'>/var/lib/jenkins/.aws/config"
-su - jenkins -c "echo '[[default]
+su - jenkins -c "echo '[default]
 aws_access_key_id = $aws_access_key_id
 aws_secret_access_key = $aws_secret_access_key'>/var/lib/jenkins/.aws/credentials"

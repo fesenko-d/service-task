@@ -299,7 +299,7 @@ aws ec2 create-tags \
 echo Adding Remote Desktop Service Security Group Inbound Rules
 aws ec2 authorize-security-group-ingress \
     --group-id $RDS_SecurityGroupID \
-    --ip-permissions IpProtocol=icmp,FromPort=all,ToPort=all,IpRanges='[{CidrIp=0.0.0.0/0,Description="ICMP Access"}]'
+    --ip-permissions IpProtocol=icmp,FromPort=0,ToPort=65535,IpRanges='[{CidrIp=0.0.0.0/0,Description="ICMP Access"}]'
 
 aws ec2 authorize-security-group-ingress \
     --group-id $RDS_SecurityGroupID \
