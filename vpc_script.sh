@@ -4,7 +4,7 @@
 #creating unique keyname adding current date
 KeyName="serviceTaskKeyPair"
 bucketName="servicetask-9000"
-egion="us-east-2"
+region="us-east-2"
 #Creating a key pair and piping private key directly into a file
 aws ec2 create-key-pair --key-name $KeyName --query 'KeyMaterial' --output text > $KeyName.pem
 #storing key in S3
@@ -300,7 +300,10 @@ aws ec2 create-tags \
 echo Adding Remote Desktop Service Security Group Inbound Rules
 aws ec2 authorize-security-group-ingress \
     --group-id $RDS_SecurityGroupID \
-    --ip-permissions IpProtocol=icmp,FromPort=0,ToPort=65535,IpRanges='[{CidrIp=0.0.0.0/0,Description="ICMP Access"}]'
+    --protocol icmp \
+    --port 0-65535 \
+    --cidr 0.0.0.0/0
+
 
 aws ec2 authorize-security-group-ingress \
     --group-id $RDS_SecurityGroupID \
@@ -317,11 +320,9 @@ aws ec2 authorize-security-group-ingress \
 echo Adding Remote Desktop Service Security Group Outbound Rules
 aws ec2 authorize-security-group-egress \
     --group-id $RDS_SecurityGroupID \
-    --ip-permissions IpProtocol=tcp,FromPort=80,ToPort=80,IpRanges='[{CidrIp=0.0.0.0/0,Description="HTTP outbound"}]'
-
-aws ec2 authorize-security-group-egress \
-    --group-id $RDS_SecurityGroupID \
-    --ip-permissions IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges='[{CidrIp=0.0.0.0/0,Description="HTTPS outbound"}]'
+    --protocol tcp \
+    --port 0-65535 \
+    --cidr 0.0.0.0/0
 
 
 echo Creating AD domain controller
