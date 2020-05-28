@@ -97,7 +97,8 @@ function Lambda_Substitution() {
     awk -v subs_find=$subs_find -v subs_replace=$subs_replace '{gsub(subs_find, subs_replace, $0)}1'
 }
 
-cat jenkins_userdata.sh|Lambda_Substitution "aws_access_key_id=DATA" $keyID|Lambda_Substitution "aws_secret_access_key=DATA" $secrKey > temp.txt
+
+cat jenkins_userdata.sh|Lambda_Substitution "aws_access_key_id=DATA" $keyID|Lambda_Substitution "aws_secret_access_key=DATA" $secrKey > tmp.txt
 
 JenkinsInstanceID=$(aws ec2 run-instances \
     --count 1 \

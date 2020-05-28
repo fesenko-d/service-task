@@ -323,6 +323,21 @@ aws ec2 authorize-security-group-egress \
     --ip-permissions IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges='[{CidrIp=0.0.0.0/0,Description="HTTPS outbound"}]'
 
 
+echo Creating AD domain controller
+#Based on Windows_Server-2019-English-Core-ECS_Optimized-2020.05.14
+AD_InstanceId=$(aws ec2 run-instances \
+    --count 1 \
+    --image-id ami-0115c3c361523afa1 \
+    --instance-type t2.micro \
+    --security-group-ids $RDS_SecurityGroupID \
+    --subnet-id $RDS_PublicSubNet_ID \
+    --associate-public-ip-address \
+    --key-name $KeyName \
+    --query 'Instances[].InstanceId' --output text)
+aws ec2 create-tags \
+    --resources $AD_InstanceId \
+    --tags Key=Name,Value=AD_Domain_Controller
+
 echo Creating Remote Desktop Service Farm Instance
 RDS_InstanceId=$(aws ec2 run-instances \
     --count 1 \
