@@ -4,6 +4,7 @@
 #creating unique keyname adding current date
 KeyName="serviceTaskKeyPair"
 bucketName="servicetask-9000"
+egion="us-east-2"
 #Creating a key pair and piping private key directly into a file
 aws ec2 create-key-pair --key-name $KeyName --query 'KeyMaterial' --output text > $KeyName.pem
 #storing key in S3
