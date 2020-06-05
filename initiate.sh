@@ -53,10 +53,10 @@ echo Associating route table with jenkins Subnet
 aws ec2 associate-route-table  --subnet-id $Jenkins_SubnetId --route-table-id $JenkinsRTId >/dev/null
 
 echo Creating Jenkins SG
-JenkinsSG_ID=$(aws ec2 create-security-group --group-name JenkinsSG_ID --description "NAT security group" --vpc-id $jenkinsVPC_ID --query 'GroupId' --output text)
+JenkinsSG_ID=$(aws ec2 create-security-group --group-name JenkinsSG_ID --description "Jenkins security group" --vpc-id $jenkinsVPC_ID --query 'GroupId' --output text)
 aws ec2 create-tags \
     --resources $JenkinsSG_ID \
-    --tags Key=Name,Value=JenkinsSG_ID
+    --tags Key=Name,Value=JenkinsSG
 
 aws ec2 authorize-security-group-ingress \
 --group-id $JenkinsSG_ID \
@@ -87,7 +87,10 @@ aws iam attach-user-policy --user-name jenkins --policy-arn arn:aws:iam::aws:pol
 # attaching policy that allows full access to S3 services
 aws iam attach-user-policy --user-name jenkins --policy-arn arn:aws:iam::aws:policy/AmazonS3FullAccess
 
+#creating iam access key for jenkins user
 JenkinsUserKey=$(aws iam create-access-key --user-name jenkins --output json)
+
+#transfering access key credentials to jenkins instance userdata
 keyID="aws_access_key_id=$(echo $JenkinsUserKey | jq -c '.[].AccessKeyId')"
 secrKey="aws_secret_access_key=$(echo $JenkinsUserKey | jq -c '.[].SecretAccessKey')"
 
@@ -100,6 +103,7 @@ function Lambda_Substitution() {
 
 cat jenkins_userdata.sh|Lambda_Substitution "aws_access_key_id=DATA" $keyID|Lambda_Substitution "aws_secret_access_key=DATA" $secrKey > tmp.txt
 
+#creating jenkins instance
 JenkinsInstanceID=$(aws ec2 run-instances \
     --count 1 \
     --image-id ami-07c1207a9d40bc3bd \
@@ -112,5 +116,5 @@ JenkinsInstanceID=$(aws ec2 run-instances \
     --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=Jenkins_Instance}]' \
     --query 'Instances[].InstanceId' \
     --output text)
-
+#deleting temporary userdata file
 rm -f tmp.txt

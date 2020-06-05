@@ -270,6 +270,12 @@ aws ec2 create-tags \
     --resources $RDS_PublicSubNet_ID \
     --tags Key=Name,Value=RDS_PublicSubNet
 
+echo Creating Remote Desktop Service public subnet
+RDS_PrivateSubNet_ID=$(aws ec2 create-subnet --vpc-id $RDS_VPC_ID --cidr-block 172.200.34.128/25 --query 'Subnet.SubnetId' --output text)
+aws ec2 create-tags \
+    --resources $RDS_PrivateSubNet_ID \
+    --tags Key=Name,Value=RDS_PrivateSubNet
+
 echo Creating Internet Gateway for external connections
 RDS_InternetGatewayId=$(aws ec2 create-internet-gateway --query 'InternetGateway.InternetGatewayId' --output text)
 aws ec2 create-tags \
@@ -291,38 +297,381 @@ aws ec2 create-route --route-table-id $RDS_MainRouteTableId --destination-cidr-b
 echo Associating route table with Remote Desktop Service public subnet
 aws ec2 associate-route-table  --subnet-id $RDS_PublicSubNet_ID --route-table-id $RDS_MainRouteTableId >/dev/null
 
-echo Creating Remote Desktop Service Security Group
-RDS_SecurityGroupID=$(aws ec2 create-security-group --group-name RDS_SecurityGroup --description "Remote Desktop Service security group" --vpc-id $RDS_VPC_ID --query 'GroupId' --output text)
+echo Creating Remote Desktop Service private subnet
+RDS_PrivateSubNet_ID=$(aws ec2 create-subnet --vpc-id $RDS_VPC_ID --cidr-block 172.200.34.0/25 --query 'Subnet.SubnetId' --output text)
 aws ec2 create-tags \
-    --resources $RDS_SecurityGroupID \
-    --tags Key=Name,Value=RDS_SecurityGroup
+    --resources $RDS_PrivateSubNet_ID \
+    --tags Key=Name,Value=RDS_PrivateSubNet
 
-echo Adding Remote Desktop Service Security Group Inbound Rules
+echo Creating Perimeter Network Security Group
+Perimeter_SecurityGroupID=$(aws ec2 create-security-group --group-name RDS_SecurityGroup --description "Perimeter Network Security Group" --vpc-id $RDS_VPC_ID --query 'GroupId' --output text)
+aws ec2 create-tags \
+    --resources $Perimeter_SecurityGroupID \
+    --tags Key=Name,Value=Perimeter_SecurityGroup
+
+echo Perimeter Network Security Group Inbound Rules
 aws ec2 authorize-security-group-ingress \
-    --group-id $RDS_SecurityGroupID \
+    --group-id $Perimeter_SecurityGroupID \
     --protocol icmp \
-    --port 0-65535 \
+    --port -1 \
     --cidr 0.0.0.0/0
 
 
 aws ec2 authorize-security-group-ingress \
-    --group-id $RDS_SecurityGroupID \
-    --ip-permissions IpProtocol=tcp,FromPort=3389,ToPort=3389,IpRanges='[{CidrIp=0.0.0.0/0,Description="RDP Access"}]'
+    --group-id $Perimeter_SecurityGroupID \
+    --protocol icmp \
+    --port -1 \
+    --cidr 172.200.34.128/25
+
 
 aws ec2 authorize-security-group-ingress \
-    --group-id $RDS_SecurityGroupID \
-    --ip-permissions IpProtocol=tcp,FromPort=80,ToPort=80,IpRanges='[{CidrIp=0.0.0.0/0,Description="HTTP Access"}]'
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=3389,ToPort=3389,IpRanges='[{CidrIp=172.200.34.128/25,Description="RDP Access"}]'
+
 
 aws ec2 authorize-security-group-ingress \
-    --group-id $RDS_SecurityGroupID \
-    --ip-permissions IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges='[{CidrIp=0.0.0.0/0,Description="HTTPS Access"}]'
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges='[{CidrIp=172.200.34.128/25,Description="HTTPS Access"}]'
 
-echo Adding Remote Desktop Service Security Group Outbound Rules
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges='[{CidrIp=0.0.0.0/0,Description="HTTPS External Access"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=464,ToPort=464,IpRanges='[{CidrIp=172.200.34.128/25,Description="Kerberos change / set password"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=464,ToPort=464,IpRanges='[{CidrIp=172.200.34.128/25,Description="Kerberos change / set password"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=88,ToPort=88,IpRanges='[{CidrIp=172.200.34.128/25,Description="Kerberos"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=135,ToPort=135,IpRanges='[{CidrIp=172.200.34.128/25,Description="RPC Endpoint Mapper"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.128/25,Description="LDAP"}]'
+
+
+aws eс2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.128/25,Description="LDAP"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=53,ToPort=53,IpRanges='[{CidrIp=172.200.34.128/25,Description="DNS"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=53,ToPort=53,IpRanges='[{CidrIp=172.200.34.128/25,Description="DNS"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=80,ToPort=80,IpRanges='[{CidrIp=172.200.34.128/25,Description="HTTP"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=21,ToPort=21,IpRanges='[{CidrIp=172.200.34.128/25,Description="FTP"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=1812,ToPort=1812,IpRanges='[{CidrIp=172.200.34.128/25,Description="RADIUS"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=1813,ToPort=1813,IpRanges='[{CidrIp=172.200.34.128/25,Description="RADIUS Accounting"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=445,ToPort=445,IpRanges='[{CidrIp=172.200.34.128/25,Description="SMB"}]'
+
+
+
+
+echo Adding Perimeter Network Security Group Outbound Rules
 aws ec2 authorize-security-group-egress \
-    --group-id $RDS_SecurityGroupID \
+    --group-id $Perimeter_SecurityGroupID \
     --protocol tcp \
     --port 0-65535 \
     --cidr 0.0.0.0/0
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --protocol icmp \
+    --port -1 \
+    --cidr 172.200.34.128/25
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=3389,ToPort=3389,IpRanges='[{CidrIp=172.200.34.128/25,Description="RDP Access"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges='[{CidrIp=172.200.34.128/25,Description="HTTPS Access"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=464,ToPort=464,IpRanges='[{CidrIp=172.200.34.128/25,Description="Kerberos change / set password"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=464,ToPort=464,IpRanges='[{CidrIp=172.200.34.128/25,Description="Kerberos change / set password"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=88,ToPort=88,IpRanges='[{CidrIp=172.200.34.128/25,Description="Kerberos"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=135,ToPort=135,IpRanges='[{CidrIp=172.200.34.128/25,Description="RPC Endpoint Mapper"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.128/25,Description="LDAP"}]'
+
+
+aws eс2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.128/25,Description="LDAP"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=53,ToPort=53,IpRanges='[{CidrIp=172.200.34.128/25,Description="DNS"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=53,ToPort=53,IpRanges='[{CidrIp=172.200.34.128/25,Description="DNS"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=80,ToPort=80,IpRanges='[{CidrIp=172.200.34.128/25,Description="HTTP"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=21,ToPort=21,IpRanges='[{CidrIp=172.200.34.128/25,Description="FTP"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=1812,ToPort=1812,IpRanges='[{CidrIp=172.200.34.128/25,Description="RADIUS"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=1813,ToPort=1813,IpRanges='[{CidrIp=172.200.34.128/25,Description="RADIUS Accounting"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Perimeter_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=445,ToPort=445,IpRanges='[{CidrIp=172.200.34.128/25,Description="SMB"}]'
+
+
+
+echo Creating Internal Network Security Group
+Internal_SecurityGroupID=$(aws ec2 create-security-group --group-name RDS_SecurityGroup --description "Internal Network security group" --vpc-id $RDS_VPC_ID --query 'GroupId' --output text)
+aws ec2 create-tags \
+    --resources $Internal_SecurityGroupID \
+    --tags Key=Name,Value=Internal_SecurityGroup
+
+echo Adding Internal Network Security Group Inbound Rules
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --protocol icmp \
+    --port -1 \
+    --cidr 172.200.34.0/25
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=3389,ToPort=3389,IpRanges='[{CidrIp=172.200.34.0/25,Description="RDP Access"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges='[{CidrIp=172.200.34.0/25,Description="HTTPS Access"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=464,ToPort=464,IpRanges='[{CidrIp=172.200.34.0/25,Description="Kerberos change / set password"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=464,ToPort=464,IpRanges='[{CidrIp=172.200.34.0/25,Description="Kerberos change / set password"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=88,ToPort=88,IpRanges='[{CidrIp=172.200.34.0/25,Description="Kerberos"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=135,ToPort=135,IpRanges='[{CidrIp=172.200.34.0/25,Description="RPC Endpoint Mapper"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.0/25,Description="LDAP"}]'
+
+
+aws eс2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.0/25,Description="LDAP"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=53,ToPort=53,IpRanges='[{CidrIp=172.200.34.0/25,Description="DNS"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=53,ToPort=53,IpRanges='[{CidrIp=172.200.34.0/25,Description="DNS"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=80,ToPort=80,IpRanges='[{CidrIp=172.200.34.0/25,Description="HTTP"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=21,ToPort=21,IpRanges='[{CidrIp=172.200.34.0/25,Description="FTP"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=1812,ToPort=1812,IpRanges='[{CidrIp=172.200.34.0/25,Description="RADIUS"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=1813,ToPort=1813,IpRanges='[{CidrIp=172.200.34.0/25,Description="RADIUS Accounting"}]'
+
+
+aws ec2 authorize-security-group-ingress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=445,ToPort=445,IpRanges='[{CidrIp=172.200.34.0/25,Description="SMB"}]'
+
+
+
+
+echo Adding Internal Network Security Group Outbound Rules
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --protocol icmp \
+    --port -1 \
+    --cidr 172.200.34.0/25
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=3389,ToPort=3389,IpRanges='[{CidrIp=172.200.34.0/25,Description="RDP Access"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=443,ToPort=443,IpRanges='[{CidrIp=172.200.34.0/25,Description="HTTPS Access"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=464,ToPort=464,IpRanges='[{CidrIp=172.200.34.0/25,Description="Kerberos change / set password"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=464,ToPort=464,IpRanges='[{CidrIp=172.200.34.0/25,Description="Kerberos change / set password"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=88,ToPort=88,IpRanges='[{CidrIp=172.200.34.0/25,Description="Kerberos"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=135,ToPort=135,IpRanges='[{CidrIp=172.200.34.0/25,Description="RPC Endpoint Mapper"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.0/25,Description="LDAP"}]'
+
+
+aws eс2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.0/25,Description="LDAP"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=53,ToPort=53,IpRanges='[{CidrIp=172.200.34.0/25,Description="DNS"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=53,ToPort=53,IpRanges='[{CidrIp=172.200.34.0/25,Description="DNS"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=80,ToPort=80,IpRanges='[{CidrIp=172.200.34.0/25,Description="HTTP"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=21,ToPort=21,IpRanges='[{CidrIp=172.200.34.0/25,Description="FTP"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=1812,ToPort=1812,IpRanges='[{CidrIp=172.200.34.0/25,Description="RADIUS"}]'
+
+
+aws ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=udp,FromPort=1813,ToPort=1813,IpRanges='[{CidrIp=172.200.34.0/25,Description="RADIUS Accounting"}]'
+
+
+aws  ec2 authorize-security-group-egress \
+    --group-id $Internal_SecurityGroupID \
+    --ip-permissions IpProtocol=tcp,FromPort=445,ToPort=445,IpRanges='[{CidrIp=172.200.34.0/25,Description="SMB"}]'
+
 
 
 echo Creating AD domain controller
@@ -331,29 +680,41 @@ AD_InstanceId=$(aws ec2 run-instances \
     --count 1 \
     --image-id ami-0115c3c361523afa1 \
     --instance-type t2.micro \
-    --security-group-ids $RDS_SecurityGroupID \
-    --subnet-id $RDS_PublicSubNet_ID \
-    --associate-public-ip-address \
+    --security-group-ids $Internal_SecurityGroupID \
+    --subnet-id $RDS_PrivateSubNet_ID \
     --key-name $KeyName \
     --query 'Instances[].InstanceId' --output text)
 aws ec2 create-tags \
     --resources $AD_InstanceId \
     --tags Key=Name,Value=AD_Domain_Controller
 
-echo Creating Remote Desktop Service Farm Instance
-RDS_InstanceId=$(aws ec2 run-instances \
+echo Creating RD Gateway Instance
+RD_GatewayId=$(aws ec2 run-instances \
     --count 1 \
     --image-id ami-07f3715a1f6dbb6d9 \
     --instance-type t2.micro \
-    --security-group-ids $RDS_SecurityGroupID \
+    --security-group-ids $Perimeter_SecurityGroupID \
     --subnet-id $RDS_PublicSubNet_ID \
     --associate-public-ip-address \
     --key-name $KeyName \
     --query 'Instances[].InstanceId' --output text)
 aws ec2 create-tags \
-    --resources $RDS_InstanceId \
-    --tags Key=Name,Value=Remote_Desktop_Farm
-RDS_InstancePublicIP=$(aws ec2 describe-instances --instance-id $RDS_InstanceId --query 'Reservations[].Instances[].PublicIpAddress' --output text)
+    --resources $RD_GatewayId \
+    --tags Key=Name,Value=RD_Gateway
+RD_GatewayPublicIP=$(aws ec2 describe-instances --instance-id $RD_GatewayId --query 'Reservations[].Instances[].PublicIpAddress' --output text)
+
+echo Creating Remote Desktop Server Instance
+RD_ServerID=$(aws ec2 run-instances \
+    --count 1 \
+    --image-id ami-0115c3c361523afa1 \
+    --instance-type t2.micro \
+    --security-group-ids $Internal_SecurityGroupID \
+    --subnet-id $RDS_PrivateSubNet_ID \
+    --key-name $KeyName \
+    --query 'Instances[].InstanceId' --output text)
+aws ec2 create-tags \
+    --resources $RD_ServerID \
+    --tags Key=Name,Value=RD_Server
 
 echo Creating Virtual Privat Gateway to coonect with RDS_VPC
 toRDP_VPN_GatewayId=$(aws ec2 create-vpn-gateway --type ipsec.1 --query 'VpnGateway.VpnGatewayId' --output text)

@@ -2,7 +2,7 @@
 # Variables
 #
 
-#$Secure_String = ConvertTo-SecureString "ns_g1l0h" -AsPlainText -Force
+$Secure_String = ConvertTo-SecureString "ns_g1l0h" -AsPlainText -Force
 $DNSName = "rds-9000.local"
 $NetbiosName = $DNSName.substring(0,$DNSName.lastindexof("."))
 $NetbiosName = $NetbiosName.toupper()
