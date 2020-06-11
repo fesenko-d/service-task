@@ -302,7 +302,7 @@ aws ec2 associate-route-table  --subnet-id $RDS_PublicSubNet_ID --route-table-id
 
 
 echo Creating Perimeter Network Security Group
-Perimeter_SecurityGroupID=$(aws ec2 create-security-group --group-name RDS_SecurityGroup --description "Perimeter Network Security Group" --vpc-id $RDS_VPC_ID --query 'GroupId' --output text)
+Perimeter_SecurityGroupID=$(aws ec2 create-security-group --group-name Perimeter_SecurityGroup --description "Perimeter Network Security Group" --vpc-id $RDS_VPC_ID --query 'GroupId' --output text)
 aws ec2 create-tags \
     --resources $Perimeter_SecurityGroupID \
     --tags Key=Name,Value=Perimeter_SecurityGroup
@@ -496,7 +496,7 @@ aws ec2 authorize-security-group-egress \
 
 
 echo Creating Internal Network Security Group
-Internal_SecurityGroupID=$(aws ec2 create-security-group --group-name RDS_SecurityGroup --description "Internal Network security group" --vpc-id $RDS_VPC_ID --query 'GroupId' --output text)
+Internal_SecurityGroupID=$(aws ec2 create-security-group --group-name Internal_SecurityGroup --description "Internal Network security group" --vpc-id $RDS_VPC_ID --query 'GroupId' --output text)
 aws ec2 create-tags \
     --resources $Internal_SecurityGroupID \
     --tags Key=Name,Value=Internal_SecurityGroup
@@ -765,6 +765,28 @@ function InstanceCheck {
     done
 }
 
+#lamda function that adds userdata to linux instances
+#args: [userdata file] [instance ID] ["sed pattern"]
+function adduserdata() {
+str=$3
+subs=${str:0:`expr index "$str" =`}
+if [ -f cloud_init.txt ]
+then
+  if [ -f $1 ]
+  then
+    sed "/DATA/ {
+    r $1
+    d
+    }" cloud_init.txt|sed "s/.*$subs.*/$str/"|base64>tmp.txt
+    aws ec2 modify-instance-attribute --instance-id $2 --attribute userData --value file://tmp.txt
+  else
+    echo $1 not found
+  fi
+else
+  echo cloud_init.txt not found
+fi
+rm -f tmp.txt
+}
 
 echo Stopping instances to modifay their attributes
 echo checking running instances
@@ -781,46 +803,11 @@ echo checking stopped instances
 
 InstanceCheck InstaceMAP 80
 
+adduserdata NAT_UserData.sh $NAT_InstanceId "s/.*WP_IP=.*/WP_IP=$WordPressInstancePrivateIP/"
 
-if [ -f cloud_init.txt ]
-then
-  if [ -f NAT_UserData.sh ]
-  then
-    sed '/DATA/ {
-    r NAT_UserData.sh
-    d
-    }' cloud_init.txt|sed "s/.*WP_IP=.*/WP_IP=$WordPressInstancePrivateIP/"|base64>tmp.txt
-    aws ec2 modify-instance-attribute --instance-id $NAT_InstanceId --attribute userData --value file://tmp.txt
-  else
-    echo NAT_UserData.sh not found
-  fi
+adduserdata WP_Userdata_U.sh $WordPressInstanceId "s/.*DB_IP=.*/DB_IP=$DataBaseInstancePrivateIP/"
 
-  if [ -f WP_Userdata_U.sh ]
-  then
-    sed '/DATA/ {
-    r WP_Userdata_U.sh
-    d
-    }' cloud_init.txt|sed "s/.*DB_IP=.*/DB_IP=$DataBaseInstancePrivateIP/"|base64>tmp.txt
-    aws ec2 modify-instance-attribute --instance-id $WordPressInstanceId --attribute userData --value file://tmp.txt
-  else
-    echo WP_Userdata_U.sh not found
-  fi
-
-  if [ -f NAT_UserData.sh ]
-  then
-    sed '/DATA/ {
-    r DB_UserData.sh
-    d
-    }' cloud_init.txt|sed "s/.*WP_IP=.*/WP_IP=$WordPressInstancePrivateIP/"|base64>tmp.txt
-    aws ec2 modify-instance-attribute --instance-id $DataBaseInstanceID --attribute userData --value file://tmp.txt
-  else
-    echo NAT_UserData.sh not found
-  fi
-
-else
-  echo cloud_init.txt not found
-fi
-rm -f tmp.txt
+adduserdata DB_UserData.sh $DataBaseInstanceID "s/.*WP_IP=.*/WP_IP=$WordPressInstancePrivateIP/"
 
 echo Starting instances
 for var in "${InstaceMAP}"
