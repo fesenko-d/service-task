@@ -9,7 +9,8 @@ region="us-east-2"
 aws ec2 create-key-pair --key-name $KeyName --query 'KeyMaterial' --output text > $KeyName.pem
 #storing key in S3
 aws s3 cp $KeyName.pem s3://$bucketName/${KeyName}.pem --region $region
-
+#Creating map of instances and their IDs
+declare -A InstaceMAP
 
 echo Creating VPC
 FrontVPC_ID=$(aws ec2 create-vpc --cidr 10.11.12.0/24 --query 'Vpc.VpcId' --output text)
@@ -83,7 +84,7 @@ aws ec2 create-tags \
     --tags Key=Name,Value=NAT_Instance
 NAT_PrivateIP=$(aws ec2 describe-instances --instance-id $NAT_InstanceId --query 'Reservations[].Instances[].PrivateIpAddress' --output text)
 NAT_PrivateCIDR="${NAT_PrivateIP}/32"
-
+InstaceMAP[NAT_InstanceId]=$NAT_InstanceId
 echo Adding NAT Security Group Inbound rules
 
 aws ec2 authorize-security-group-ingress \
@@ -177,6 +178,7 @@ aws ec2 create-tags \
     --resources $WordPressInstanceId \
     --tags Key=Name,Value=WordPress_Instance
 WordPressInstancePrivateIP=$(aws ec2 describe-instances --instance-id $WordPressInstanceId --query 'Reservations[].Instances[].PrivateIpAddress' --output text)
+InstaceMAP[WordPressInstanceId]=$WordPressInstanceId
 
 echo Creating Private route table
 PrivateRouteTableId=$(aws ec2 create-route-table --vpc-id $FrontVPC_ID --query 'RouteTable.RouteTableId' --output text)
@@ -257,6 +259,7 @@ DataBaseInstanceID=$(aws ec2 run-instances \
     --query 'Instances[].InstanceId' \
     --output text)
 DataBaseInstancePrivateIP=$(aws ec2 describe-instances --instance-id $DataBaseInstanceID --query 'Reservations[].Instances[].PrivateIpAddress' --output text)
+InstaceMAP[DataBaseInstanceID]=$DataBaseInstanceID
 
 echo Creating VPC for Remote Desktop Service Farm
 RDS_VPC_ID=$(aws ec2 create-vpc --cidr 172.200.34.0/24 --query 'Vpc.VpcId' --output text)
@@ -270,7 +273,7 @@ aws ec2 create-tags \
     --resources $RDS_PublicSubNet_ID \
     --tags Key=Name,Value=RDS_PublicSubNet
 
-echo Creating Remote Desktop Service public subnet
+echo Creating Remote Desktop Service private subnet
 RDS_PrivateSubNet_ID=$(aws ec2 create-subnet --vpc-id $RDS_VPC_ID --cidr-block 172.200.34.128/25 --query 'Subnet.SubnetId' --output text)
 aws ec2 create-tags \
     --resources $RDS_PrivateSubNet_ID \
@@ -297,11 +300,6 @@ aws ec2 create-route --route-table-id $RDS_MainRouteTableId --destination-cidr-b
 echo Associating route table with Remote Desktop Service public subnet
 aws ec2 associate-route-table  --subnet-id $RDS_PublicSubNet_ID --route-table-id $RDS_MainRouteTableId >/dev/null
 
-echo Creating Remote Desktop Service private subnet
-RDS_PrivateSubNet_ID=$(aws ec2 create-subnet --vpc-id $RDS_VPC_ID --cidr-block 172.200.34.0/25 --query 'Subnet.SubnetId' --output text)
-aws ec2 create-tags \
-    --resources $RDS_PrivateSubNet_ID \
-    --tags Key=Name,Value=RDS_PrivateSubNet
 
 echo Creating Perimeter Network Security Group
 Perimeter_SecurityGroupID=$(aws ec2 create-security-group --group-name RDS_SecurityGroup --description "Perimeter Network Security Group" --vpc-id $RDS_VPC_ID --query 'GroupId' --output text)
@@ -687,6 +685,7 @@ AD_InstanceId=$(aws ec2 run-instances \
 aws ec2 create-tags \
     --resources $AD_InstanceId \
     --tags Key=Name,Value=AD_Domain_Controller
+#InstaceMAP[AD_InstanceId]=$AD_InstanceId
 
 echo Creating RD Gateway Instance
 RD_GatewayId=$(aws ec2 run-instances \
@@ -702,6 +701,7 @@ aws ec2 create-tags \
     --resources $RD_GatewayId \
     --tags Key=Name,Value=RD_Gateway
 RD_GatewayPublicIP=$(aws ec2 describe-instances --instance-id $RD_GatewayId --query 'Reservations[].Instances[].PublicIpAddress' --output text)
+#InstaceMAP[RD_GatewayId]=$RD_GatewayId
 
 echo Creating Remote Desktop Server Instance
 RD_ServerID=$(aws ec2 run-instances \
@@ -715,6 +715,7 @@ RD_ServerID=$(aws ec2 run-instances \
 aws ec2 create-tags \
     --resources $RD_ServerID \
     --tags Key=Name,Value=RD_Server
+#InstaceMAP[RD_ServerID]=$RD_ServerID
 
 echo Creating Virtual Privat Gateway to coonect with RDS_VPC
 toRDP_VPN_GatewayId=$(aws ec2 create-vpn-gateway --type ipsec.1 --query 'VpnGateway.VpnGatewayId' --output text)
@@ -745,36 +746,41 @@ aws ec2 create-tags \
     --resources $RDPtoFrontConnectionId \
     --tags Key=Name,Value=RDP_to_FrontVPC_VpnConnection
 
+
+#lamda function that checks instances statate
+#args: map of instances with their IDs and statecode
+function InstanceCheck {
+    echo checking instances
+    local -n checkmap=$1
+    checkcode=$2
+    isSuccess=0
+    while :
+    do
+      for V in "${checkmap[@]}"
+      do
+         state=$(aws ec2 describe-instances --instance-id $V --query 'Reservations[].Instances[].State.Code' --output text)
+         if [[ $state -ne $checkcode ]]; then isSuccess=1; break; fi
+      done
+      if [[ $isSuccess -eq 0 ]];then echo success; break; else echo fault;  fi
+    done
+}
+
+
 echo Stopping instances to modifay their attributes
-while :
+echo checking running instances
+
+InstanceCheck InstaceMAP 16
+
+for var in "${InstaceMAP}"
 do
-  echo checking instances
-  NATStateCode=$(aws ec2 describe-instances --instance-id $NAT_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
-  WPStateCode=$(aws ec2 describe-instances --instance-id $WordPressInstanceId --query 'Reservations[].Instances[].State.Code' --output text)
-  DBStateCode=$(aws ec2 describe-instances --instance-id $DataBaseInstanceID --query 'Reservations[].Instances[].State.Code' --output text)
-  RStateCode=$(aws ec2 describe-instances --instance-id $RDS_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
-  if [[ $NATStateCode -eq 16 && $WPStateCode -eq 16 && $DBStateCode -eq 16 && $RStateCode -eq 16 ]]
-  then
-    echo success
-    break
-  fi
+  aws ec2 stop-instances --instance-ids "$var" >/dev/null
 done
-aws ec2 stop-instances --instance-ids "$NAT_InstanceId" "$WordPressInstanceId" "$DataBaseInstanceID" "$RDS_InstanceId" >/dev/null
 
 echo Adding startup scripts
-while :
-do
-  echo checking instances
-  NATStateCode=$(aws ec2 describe-instances --instance-id $NAT_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
-  WPStateCode=$(aws ec2 describe-instances --instance-id $WordPressInstanceId --query 'Reservations[].Instances[].State.Code' --output text)
-  DBStateCode=$(aws ec2 describe-instances --instance-id $DataBaseInstanceID --query 'Reservations[].Instances[].State.Code' --output text)
-  RStateCode=$(aws ec2 describe-instances --instance-id $RDS_InstanceId --query 'Reservations[].Instances[].State.Code' --output text)
-  if [[ $NATStateCode -eq 80 && $WPStateCode -eq 80 && $DBStateCode -eq 80 && $RStateCode -eq 80 ]]
-  then
-    echo success
-    break
-  fi
-done
+echo checking stopped instances
+
+InstanceCheck InstaceMAP 80
+
 
 if [ -f cloud_init.txt ]
 then
@@ -817,7 +823,11 @@ fi
 rm -f tmp.txt
 
 echo Starting instances
-aws ec2 start-instances --instance-ids "$NAT_InstanceId" "$WordPressInstanceId" "$DataBaseInstanceID" "$RDS_InstanceId" >/dev/null
+for var in "${InstaceMAP}"
+do
+  aws ec2 start-instances --instance-ids "$var" >/dev/null
+done
+
 
 
 
