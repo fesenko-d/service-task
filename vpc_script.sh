@@ -362,7 +362,7 @@ aws ec2 authorize-security-group-ingress \
     --ip-permissions IpProtocol=tcp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.128/25,Description="LDAP"}]'
 
 
-aws eс2 authorize-security-group-ingress \
+aws ec2 authorize-security-group-ingress \
     --group-id $Perimeter_SecurityGroupID \
     --ip-permissions IpProtocol=udp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.128/25,Description="LDAP"}]'
 
@@ -454,7 +454,7 @@ aws ec2 authorize-security-group-egress \
     --ip-permissions IpProtocol=tcp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.128/25,Description="LDAP"}]'
 
 
-aws eс2 authorize-security-group-egress \
+aws ec2 authorize-security-group-egress \
     --group-id $Perimeter_SecurityGroupID \
     --ip-permissions IpProtocol=udp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.128/25,Description="LDAP"}]'
 
@@ -545,7 +545,7 @@ aws ec2 authorize-security-group-ingress \
     --ip-permissions IpProtocol=tcp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.0/25,Description="LDAP"}]'
 
 
-aws eс2 authorize-security-group-ingress \
+aws ec2 authorize-security-group-ingress \
     --group-id $Internal_SecurityGroupID \
     --ip-permissions IpProtocol=udp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.0/25,Description="LDAP"}]'
 
@@ -631,7 +631,7 @@ aws ec2 authorize-security-group-egress \
     --ip-permissions IpProtocol=tcp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.0/25,Description="LDAP"}]'
 
 
-aws eс2 authorize-security-group-egress \
+aws ec2 authorize-security-group-egress \
     --group-id $Internal_SecurityGroupID \
     --ip-permissions IpProtocol=udp,FromPort=389,ToPort=389,IpRanges='[{CidrIp=172.200.34.0/25,Description="LDAP"}]'
 
@@ -728,7 +728,7 @@ aws ec2 attach-vpn-gateway --vpn-gateway-id $toRDP_VPN_GatewayId --vpc-id $Front
 
 
 echo Customer Gateway to connect with Front_VPC
-CustomerGWID=$(aws ec2 create-customer-gateway --bgp-asn 65000 --type ipsec.1 --public-ip $RDS_InstancePublicIP --query 'CustomerGateway.CustomerGatewayId' --output text)
+CustomerGWID=$(aws ec2 create-customer-gateway --bgp-asn 65000 --type ipsec.1 --public-ip $RD_GatewayPublicIP --query 'CustomerGateway.CustomerGatewayId' --output text)
 aws ec2 create-tags \
     --resources $CustomerGWID \
     --tags Key=Name,Value=RDP_CustomerGateway
