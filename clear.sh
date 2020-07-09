@@ -13,20 +13,93 @@ do
     then
       for vpcid in $vpcidList
       do
-#Removing vpn connection
-        aws ec2 describe-
-        aws ec2 delete-vpn-connection --vpn-connection-id $vpnConnectionId
-
-#Removing CustomerGW
-        aws ec2 describe-customer-gateways --filters Name=tag:Name,Values=$cgTagName
-        aws ec2 delete-customer-gateway --customer-gateway-id $cgwid
-
 
 #Removing VPNGV
-#Dettaching VPNGV from VPC
-        aws ec2 detach-vpn-gateway --vpn-gateway-id $vpnGvId --vpc-id $vpcid
+        vpnGvIds=($(aws ec2 describe-vpn-gateways --filters Name=attachment.state,Values= Name=attachment.vpc-id, Values=$vpcid --query 'VpnGateways[].VpnGatewayId' --output json|jq -r '.[]'))
+        if [[ $vpnGvIds ]]
+        then
+          for vpnGvId in $vpnGvIds
+          do
+            while :
+            do
+              vpnGvState=$(aws ec2 describe-vpn-gateways --vpn-gateway-ids $vpnGvId --query 'VpnGateways[].State' --output text)
+              case $vpnGvState in
+                available)
+#Removing vpn connection
+                  vpnConnectionId=$(aws ec2 describe-vpn-connections --filters Name=vpn-gateway-id,Values=$vpnGvId --query 'VpnConnections.VpnConnectionId' --output text)
+                  if [[ $vpnConnectionId ]]
+                  then
+                    while :
+                    do
+                      vpnConnectionState=$(aws ec2 describe-vpn-connections --vpn-connection-ids $vpnConnectionId --query 'VpnConnections.State' --output text)
+                      case $vpnConnectionState in
+                        available)
+#Removing CustomerGW
+                          cgwid=$(aws ec2 describe-vpn-connections --filters Name=vpn-connection-id,Values=$vpnConnectionId --query 'VpnConnections.CustomerGatewayId' --output text)
+                          if [[ $cgwid ]]
+                          then
+                            while :
+                            do
+                              cgwState=$(aws ec2 describe-customer-gateways --filters Name=customer-gateway-id,Values=$cgwid --query 'CustomerGateways[].State' --output text)
+                              case $cgwState in
+                                available)
+                                  aws ec2 delete-customer-gateway --customer-gateway-id $cgwid
+                                  break
+                                  ;;
+                                deleted)
+                                  break
+                                  ;;
+                                *)
+                                  echo wait
+                                  ;;
+                              esac
+                            done
+                          else
+                            echo nothing to do
+                          fi
 
-        aws ec2 delete-vpn-gateway --vpn-gateway-id $vpnGvId
+
+                          aws ec2 delete-vpn-connection --vpn-connection-id $vpnConnectionId
+                          break
+                          ;;
+                        deleted)
+                          break
+                          ;;
+                        *)
+                          echo wait
+                          ;;
+                      esac
+                    done
+                  else
+                    echo nothing to do
+                  fi
+#Dettaching VPNGV from VPC
+                  echo dettaching VPNGV from VPC
+                  aws ec2 detach-vpn-gateway --vpn-gateway-id $vpnGvId --vpc-id $vpcid
+                  while :
+                  do
+                    isdettached=$(aws ec2 describe-vpn-gateways --vpn-gateway-ids $vpnGvId --filters Name=attachment.vpc-id,Values=$vpcid --query 'VpnGateways[].VpcAttachments[].State' --output text)
+                    if [[ $isdettached = "detached" ]]
+                    then
+                      break
+                    fi
+                  done
+                  echo removing vpn gateway
+                  aws ec2 delete-vpn-gateway --vpn-gateway-id $vpnGvId
+                  break
+                  ;;
+                deleted)
+                  break
+                  ;;
+                *)
+                  echo wait
+                  ;;
+                esac
+              done
+          done
+        else
+          echo nothing to do
+        fi
 
 #removing instances
         instids=($(aws ec2 describe-instances --filters Name=vpc-id,Values=$vpcid --query 'Reservations[].Instances[].InstanceId' --output json|jq -r '.[]'))
